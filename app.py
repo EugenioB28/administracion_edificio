@@ -90,7 +90,7 @@ with st.sidebar:
 
 # ============ VISTA DEPARTAMENTOS ============
 if vista == "Departamentos":
-    st.title("🔍 Consulta de Departamento")
+    st.title("Consulta de Departamento 🔍")
     
     cursor.execute("SELECT depto FROM configuracion_deptos")
     deptos_raw = [f[0] for f in cursor.fetchall()]
@@ -105,7 +105,7 @@ if vista == "Departamentos":
         mes_sel = st.selectbox("Selecciona el Mes:", lista_meses if lista_meses else ["Sin registros"])
 
     # Subapartado para descargar el Estado de Cuenta Oficial en PDF del mes seleccionado
-    st.markdown("### 📄 Estado de Cuenta Oficial del Mes")
+    st.markdown("### Estado de Cuenta del Mes 📄")
     cursor.execute("SELECT archivo_pdf FROM historico_reportes_pdf WHERE mes_anio = %s", (mes_sel,))
     pdf_blob = cursor.fetchone()
     
@@ -117,10 +117,10 @@ if vista == "Departamentos":
             mime="application/pdf"
         )
     else:
-        st.info("El administrador aún no ha subido el reporte PDF definitivo para este mes.")
+        st.info("El administrador aún no ha subido el reporte para este mes.")
         
     st.markdown("---")
-    st.markdown("### 📊 Desglose de Saldos Individuales")
+    st.markdown("### Desglose de Saldos Individuales 📊")
     if st.button("Buscar Información"):
         query = "SELECT depto, saldo_anterior, pago, multa, adeudo_mes, pago_anticipado, banco_efectivo FROM bitacora_ingresos WHERE depto = %s AND mes_anio = %s"
         df = pd.read_sql_query(query, conn, params=(depto_sel, mes_sel))
@@ -130,7 +130,7 @@ if vista == "Departamentos":
             df.columns = ["Depto.", "Saldo Anterior", "Pago", "Multa", "Adeudo del Mes", "Pago Anticipado", "Banco/Efectivo"]
             st.dataframe(df.set_index('Depto.'), use_container_width=True)
         else:
-            st.info("No se encontraron registros numéricos en la bitácora para este departamento en el mes seleccionado.")
+            st.info("No se encontraron registros para este departamento en el mes seleccionado.")
 
 # ============ VISTA ADMINISTRADOR ============
 elif vista == "Administrador" and es_admin:
@@ -261,7 +261,7 @@ elif vista == "Administrador" and es_admin:
         st.subheader(f"Carga de Estado de Cuenta Oficial - {mes_actual}")
         st.write("Usa esta sección para publicar o actualizar el PDF definitivo que verán todos los departamentos.")
         
-        archivo_subido = st.file_uploader("Selecciona el archivo PDF corregido y revisado:", type=["pdf"])
+        archivo_subido = st.file_uploader("Selecciona el archivo PDF:", type=["pdf"])
         
         if archivo_subido is not None:
             if st.button("Publicar PDF para Departamentos"):
@@ -276,7 +276,7 @@ elif vista == "Administrador" and es_admin:
 
     # ============ GENERACIÓN DE REPORTES PDF BORRADOR ============
     st.markdown("---")
-    st.subheader("🖨️ Generar Estado de Cuenta Imprimible")
+    st.subheader("Generar Estado de Cuenta")
     
     if st.button("Generar Reporte PDF"):
         from reportlab.lib.pagesizes import letter, landscape
