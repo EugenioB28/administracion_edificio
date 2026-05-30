@@ -35,11 +35,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ============ CONEXIÓN A BASE DE DATOS ============
+# ============ CONEXIÓN A BASE DE DATOS Y SECRETS ============
 try:
     DB_URI = st.secrets["db_uri"]
+    ADMIN_PASSWORD = st.secrets["admin_password"]
 except:
-    st.error("Error: Configura 'db_uri' en los Secrets de Streamlit.")
+    st.error("Error: Configura 'db_uri' y 'admin_password' en los Secrets de Streamlit.")
     st.stop()
 
 def conectar_db():
@@ -63,6 +64,7 @@ def depurar_historico():
         mes_a_borrar = meses[0]
         cursor.execute("DELETE FROM bitacora_ingresos WHERE mes_anio = %s", (mes_a_borrar,))
         cursor.execute("DELETE FROM bitacora_egresos WHERE mes_anio = %s", (mes_a_borrar,))
+        cursor.execute("DELETE FROM historico_reportes_pdf WHERE mes_anio = %s", (mes_a_borrar,))
         conn.commit()
         st.sidebar.warning(f"Historial depurado: Se eliminó '{mes_a_borrar}' para mantener el límite de 12 meses.")
 
@@ -74,7 +76,7 @@ with st.sidebar:
     es_admin = False
     if vista == "Administrador":
         password = st.text_input("Contraseña de Acceso:", type="password")
-        if password == "Admin2026":
+        if password == ADMIN_PASSWORD:
             es_admin = True
             st.success("Acceso Autorizado")
         elif password != "":
@@ -102,6 +104,23 @@ if vista == "Departamentos":
         lista_meses = [f[0] for f in cursor.fetchall()]
         mes_sel = st.selectbox("Selecciona el Mes:", lista_meses if lista_meses else ["Sin registros"])
 
+    # Subapartado para descargar el Estado de Cuenta Oficial en PDF del mes seleccionado
+    st.markdown("### 📄 Estado de Cuenta Oficial del Mes")
+    cursor.execute("SELECT archivo_pdf FROM historico_reportes_pdf WHERE mes_anio = %s", (mes_sel,))
+    pdf_blob = cursor.fetchone()
+    
+    if pdf_blob and pdf_blob[0]:
+        st.download_button(
+            label="Descargar Estado de Cuenta PDF",
+            data=bytes(pdf_blob[0]),
+            file_name=f"Estado_de_Cuenta_{mes_sel.replace(' ', '_')}.pdf",
+            mime="application/pdf"
+        )
+    else:
+        st.info("El administrador aún no ha subido el reporte PDF definitivo para este mes.")
+        
+    st.markdown("---")
+    st.markdown("### 📊 Desglose de Saldos Individuales")
     if st.button("Buscar Información"):
         query = "SELECT depto, saldo_anterior, pago, multa, adeudo_mes, pago_anticipado, banco_efectivo FROM bitacora_ingresos WHERE depto = %s AND mes_anio = %s"
         df = pd.read_sql_query(query, conn, params=(depto_sel, mes_sel))
@@ -111,13 +130,13 @@ if vista == "Departamentos":
             df.columns = ["Depto.", "Saldo Anterior", "Pago", "Multa", "Adeudo del Mes", "Pago Anticipado", "Banco/Efectivo"]
             st.dataframe(df.set_index('Depto.'), use_container_width=True)
         else:
-            st.info("No se encontraron registros cargados para este departamento en el mes seleccionado.")
+            st.info("No se encontraron registros numéricos en la bitácora para este departamento en el mes seleccionado.")
 
 # ============ VISTA ADMINISTRADOR ============
 elif vista == "Administrador" and es_admin:
     st.title("⚙️ Panel de Control - Administrador")
     
-    operacion = st.selectbox("Selecciona la acción a realizar:", ["Registrar Ingresos", "Registrar Egresos", "Modificar Valores Predefinidos"])
+    operacion = st.selectbox("Selecciona la acción a realizar:", ["Registrar Ingresos", "Registrar Egresos", "Modificar Valores Predefinidos", "Gestionar Reportes PDF"])
     mes_actual = st.text_input("Mes de Trabajo Actual (Ejemplo: Mayo 2026):", "Mayo 2026")
 
     # OPERACIÓN A: REGISTRAR INGRESOS
@@ -135,7 +154,6 @@ elif vista == "Administrador" and es_admin:
         cuota_fija = next(d[1] for d in deptos_info if d[0] == depto)
         saldo_anterior = next(d[2] for d in deptos_info if d[0] == depto)
         
-        # Cuota mensual compacta
         st.text(f"Cuota mensual: ${cuota_fija:.2f}")
         
         pago = st.number_input("Monto Pagado este mes ($):", min_value=0.0, step=50.0)
@@ -149,7 +167,6 @@ elif vista == "Administrador" and es_admin:
             adeudo_mes = monto_debido - pago
             pago_anticipado = 0.0
             
-        # Formato visual limpio del calculo explicativo sin formato matemático crudo
         texto_calculo = f"Adeudo del Mes: ${adeudo_mes:.2f}   |   Pago Anticipado: ${pago_anticipado:.2f}   |   Saldo Anterior: ${saldo_anterior:.2f}"
         st.text(texto_calculo)
         
@@ -185,7 +202,6 @@ elif vista == "Administrador" and es_admin:
             cursor.execute("SELECT concepto, importe FROM egresos_fijos")
             fijos_info = cursor.fetchall()
             
-            # Validación robusta de catálogo vacío
             if fijos_info:
                 lista_conceptos = [f[0] for f in fijos_info]
                 concepto = st.selectbox("Concepto Fijo:", lista_conceptos)
@@ -222,7 +238,6 @@ elif vista == "Administrador" and es_admin:
         
         depto_mod = st.selectbox("Selecciona Depto a modificar:", df_deptos['Departamento'])
         
-        # Reducción estricta de departamentos con cuota especial de $950
         cuota_sugerida = 950.0 if depto_mod in ["B2", "B4", "B23", "B33", "B34"] else 1050.0
         
         col_c1, col_c2 = st.columns(2)
@@ -241,7 +256,25 @@ elif vista == "Administrador" and es_admin:
             st.success(f"Valores de {depto_mod} actualizados con éxito.")
             st.rerun()
 
-    # ============ GENERACIÓN DE REPORTES PDF ============
+    # OPERACIÓN D: GESTIONAR Y CARGAR REPORTES PDF FINALES
+    elif operacion == "Gestionar Reportes PDF":
+        st.subheader(f"Carga de Estado de Cuenta Oficial - {mes_actual}")
+        st.write("Usa esta sección para publicar o actualizar el PDF definitivo que verán todos los departamentos.")
+        
+        archivo_subido = st.file_uploader("Selecciona el archivo PDF corregido y revisado:", type=["pdf"])
+        
+        if archivo_subido is not None:
+            if st.button("Publicar PDF para Departamentos"):
+                pdf_bytes = archivo_subido.read()
+                cursor.execute("""
+                    INSERT INTO historico_reportes_pdf (mes_anio, archivo_pdf)
+                    VALUES (%s, %s)
+                    ON CONFLICT (mes_anio) DO UPDATE SET archivo_pdf = EXCLUDED.archivo_pdf
+                """, (mes_actual, psycopg2.Binary(pdf_bytes)))
+                conn.commit()
+                st.success(f"¡El Estado de Cuenta de {mes_actual} ha sido publicado con éxito en la plataforma!")
+
+    # ============ GENERACIÓN DE REPORTES PDF BORRADOR ============
     st.markdown("---")
     st.subheader("🖨️ Generar Estado de Cuenta Imprimible")
     
@@ -258,12 +291,7 @@ elif vista == "Administrador" and es_admin:
         styles = getSampleStyleSheet()
         
         style_title = ParagraphStyle(
-            name='CenterTitle',
-            parent=styles['Title'],
-            fontName='Helvetica',
-            fontSize=22,
-            spaceAfter=20,
-            alignment=1
+            name='CenterTitle', parent=styles['Title'], fontName='Helvetica', fontSize=22, spaceAfter=20, alignment=1
         )
         
         titulo = f"Estado de Cuenta {mes_actual}"
@@ -283,13 +311,8 @@ elif vista == "Administrador" and es_admin:
             if d_name in dict_ingresos:
                 info = dict_ingresos[d_name]
                 datos_completos_tabla.append([
-                    d_name,
-                    f"{info['saldo_anterior']:.1f}",
-                    f"{info['pago']:.1f}",
-                    f"{info['multa']:.1f}",
-                    f"{info['adeudo_mes']:.1f}",
-                    f"{info['pago_anticipado']:.1f}",
-                    str(info['banco_efectivo'])
+                    d_name, f"{info['saldo_anterior']:.1f}", f"{info['pago']:.1f}", f"{info['multa']:.1f}",
+                    f"{info['adeudo_mes']:.1f}", f"{info['pago_anticipado']:.1f}", str(info['banco_efectivo'])
                 ])
             else:
                 cfg_depto = next(d for d in todos_los_deptos if d[0] == d_name)
@@ -297,13 +320,7 @@ elif vista == "Administrador" and es_admin:
                 saldo_ant = cfg_depto[2] if cfg_depto[2] is not None else 0.0
                 
                 datos_completos_tabla.append([
-                    d_name,
-                    f"{saldo_ant:.1f}",
-                    "0.0",
-                    "0.0",
-                    f"{cuota_base:.1f}",
-                    "0.0",
-                    "Efectivo"
+                    d_name, f"{saldo_ant:.1f}", "0.0", "0.0", f"{cuota_base:.1f}", "0.0", "Efectivo"
                 ])
         
         headers = ["Departamento", "Saldo Anterior", "Pago", "Multa", "Adeudo del Mes", "Pago Anticipado", "Banco/Efectivo"]
@@ -325,23 +342,14 @@ elif vista == "Administrador" and es_admin:
         story.append(Spacer(1, 25))
         
         style_heading = ParagraphStyle(
-            name='LeftHeading',
-            parent=styles['Normal'],
-            fontName='Helvetica-Bold',
-            fontSize=12,
-            spaceAfter=10
+            name='LeftHeading', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=12, spaceAfter=10
         )
         story.append(Paragraph("Egresos:", style_heading))
         
         style_egreso = ParagraphStyle(
-            name='EgresoRow',
-            parent=styles['Normal'],
-            fontName='Helvetica',
-            fontSize=10,
-            leading=14
+            name='EgresoRow', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=14
         )
         
-        # Extracción e inclusión independiente de Egresos Fijos del catálogo y Variables del mes
         cursor.execute("SELECT concepto, importe FROM egresos_fijos")
         egresos_fijos_lista = cursor.fetchall()
         
@@ -354,8 +362,7 @@ elif vista == "Administrador" and es_admin:
             for concepto, importe in todos_los_egresos:
                 ancho_fijo = 110  
                 puntos = "." * (ancho_fijo - len(f"Concepto (Ejemplo: {concepto})"))
-                if len(puntos) < 4:
-                    puntos = "...."
+                if len(puntos) < 4: puntos = "...."
                 
                 texto_egreso = f"Concepto (Ejemplo: {concepto}){puntos}${importe:,.2f}"
                 story.append(Paragraph(texto_egreso, style_egreso))
