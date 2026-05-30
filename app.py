@@ -4,21 +4,21 @@ import psycopg2
 import re
 from io import BytesIO
 
-# CONFIGURACIÓN E IDENTIDAD VISUAL
+# ============ CONFIGURACIÓN E IDENTIDAD VISUAL ============
 st.set_page_config(page_title="Admin Edificio", page_icon="🏢", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF !important; }
-    
-    [data-testid="stMain"] p, [data-testid="stMain"] span, [data-testid="stMain"] label, 
+
+    [data-testid="stMain"] p, [data-testid="stMain"] span, [data-testid="stMain"] label,
     [data-testid="stMain"] div, [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3 {
         color: #1A1A1A !important;
     }
 
     [data-testid="stSidebar"] { background-color: #1A3E5C !important; }
     [data-testid="stSidebar"] * { color: #FFFFFF !important; }
-    
+
     div.stButton > button {
         background-color: #1A3E5C !important;
         color: white !important;
@@ -27,15 +27,15 @@ st.markdown("""
         font-weight: bold !important;
     }
     div.stButton > button p { color: white !important; }
-    
-    .footer { 
-        position: fixed; left: 20px; bottom: 20px; text-align: left; 
-        color: #555555 !important; font-size: 12px; font-weight: bold; 
+
+    .footer {
+        position: fixed; left: 20px; bottom: 20px; text-align: left;
+        color: #555555 !important; font-size: 12px; font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# CONEXIÓN SEGURA A LA BASE DE DATOS WEB
+# ============ CONEXIÓN A BASE DE DATOS ============
 try:
     DB_URI = st.secrets["db_uri"]
 except:
@@ -48,7 +48,7 @@ def conectar_db():
 conn = conectar_db()
 cursor = conn.cursor()
 
-# FUNCIONES AUXILIARES
+# ============ FUNCIONES AUXILIARES ============
 def ordenar_deptos_natural(lista_deptos):
     def clasificar(texto):
         partes = re.split(r'(\d+)', texto)
@@ -58,7 +58,7 @@ def ordenar_deptos_natural(lista_deptos):
 def depurar_historico():
     cursor.execute("SELECT DISTINCT mes_anio FROM bitacora_ingresos")
     meses = [fila[0] for fila in cursor.fetchall()]
-    
+
     if len(meses) > 12:
         mes_a_borrar = meses[0]
         cursor.execute("DELETE FROM bitacora_ingresos WHERE mes_anio = %s", (mes_a_borrar,))
@@ -66,15 +66,15 @@ def depurar_historico():
         conn.commit()
         st.sidebar.warning(f"Historial depurado: Se eliminó '{mes_a_borrar}' para mantener el límite de 12 meses.")
 
-# PANEL LATERAL
+# ============ PANEL LATERAL ============
 with st.sidebar:
     st.title("Administración 🏢")
-    vista = st.sidebar.radio("Tipo de Vista:", ["Condóminos", "Administrador"])
+    vista = st.sidebar.radio("Tipo de Vista:", ["Departamentos", "Administrador"])
 
     es_admin = False
     if vista == "Administrador":
         password = st.text_input("Contraseña de Acceso:", type="password")
-        if password == "Admin2026": 
+        if password == "Admin2026":
             es_admin = True
             st.success("Acceso Autorizado")
         elif password != "":
@@ -86,9 +86,9 @@ with st.sidebar:
         st.write("Firma técnica:")
         st.write("**Eugenio Badillo**")
 
-# VISTA 1: CONDÓMINO
+# ============ VISTA DEPARTAMENTOS ============
 if vista == "Departamentos":
-    st.title("Consulta de Departamento 🔍")
+    st.title("🔍 Consulta de Departamento")
     
     cursor.execute("SELECT depto FROM configuracion_deptos")
     deptos_raw = [f[0] for f in cursor.fetchall()]
@@ -113,9 +113,9 @@ if vista == "Departamentos":
         else:
             st.info("No se encontraron registros cargados para este departamento en el mes seleccionado.")
 
-# VISTA 2: ADMINISTRADOR
+# ============ VISTA ADMINISTRADOR ============
 elif vista == "Administrador" and es_admin:
-    st.title("Panel de Control - Administrador")
+    st.title("⚙️ Panel de Control - Administrador")
     
     operacion = st.selectbox("Selecciona la acción a realizar:", ["Registrar Ingresos", "Registrar Egresos", "Modificar Valores Predefinidos"])
     mes_actual = st.text_input("Mes de Trabajo Actual (Ejemplo: Mayo 2026):", "Mayo 2026")
@@ -135,6 +135,7 @@ elif vista == "Administrador" and es_admin:
         cuota_fija = next(d[1] for d in deptos_info if d[0] == depto)
         saldo_anterior = next(d[2] for d in deptos_info if d[0] == depto)
         
+        # Cuota mensual compacta
         st.text(f"Cuota mensual: ${cuota_fija:.2f}")
         
         pago = st.number_input("Monto Pagado este mes ($):", min_value=0.0, step=50.0)
@@ -148,6 +149,7 @@ elif vista == "Administrador" and es_admin:
             adeudo_mes = monto_debido - pago
             pago_anticipado = 0.0
             
+        # Formato visual limpio del calculo explicativo sin formato matemático crudo
         texto_calculo = f"Adeudo del Mes: ${adeudo_mes:.2f}   |   Pago Anticipado: ${pago_anticipado:.2f}   |   Saldo Anterior: ${saldo_anterior:.2f}"
         st.text(texto_calculo)
         
@@ -182,11 +184,17 @@ elif vista == "Administrador" and es_admin:
         if tipo_egreso == "Importe Fijo (Catálogo)":
             cursor.execute("SELECT concepto, importe FROM egresos_fijos")
             fijos_info = cursor.fetchall()
-            lista_conceptos = [f[0] for f in fijos_info]
             
-            concepto = st.selectbox("Concepto Fijo:", lista_conceptos)
-            importe_sugerido = next(f[1] for f in fijos_info if f[0] == concepto)
-            importe = st.number_input("Importe ($):", value=importe_sugerido)
+            # Validación robusta de catálogo vacío
+            if fijos_info:
+                lista_conceptos = [f[0] for f in fijos_info]
+                concepto = st.selectbox("Concepto Fijo:", lista_conceptos)
+                importe_sugerido = next(f[1] for f in fijos_info if f[0] == concepto)
+                importe = st.number_input("Importe ($):", value=float(importe_sugerido))
+            else:
+                st.warning("El catálogo de egresos fijos está vacío en la base de datos.")
+                concepto = st.text_input("Concepto Fijo Manual:")
+                importe = st.number_input("Importe ($):", min_value=0.0, step=50.0)
         else:
             concepto = st.text_input("Concepto Variable (Ej. Reparacion lampara):")
             importe = st.number_input("Importe ($):", min_value=0.0, step=10.0)
@@ -214,6 +222,7 @@ elif vista == "Administrador" and es_admin:
         
         depto_mod = st.selectbox("Selecciona Depto a modificar:", df_deptos['Departamento'])
         
+        # Reducción estricta de departamentos con cuota especial de $950
         cuota_sugerida = 950.0 if depto_mod in ["B2", "B4", "B23", "B33", "B34"] else 1050.0
         
         col_c1, col_c2 = st.columns(2)
@@ -232,7 +241,7 @@ elif vista == "Administrador" and es_admin:
             st.success(f"Valores de {depto_mod} actualizados con éxito.")
             st.rerun()
 
-    # --- SECCIÓN DE REPORTES: GENERACIÓN DEL PDF ---
+    # ============ GENERACIÓN DE REPORTES PDF ============
     st.markdown("---")
     st.subheader("🖨️ Generar Estado de Cuenta Imprimible")
     
@@ -332,6 +341,7 @@ elif vista == "Administrador" and es_admin:
             leading=14
         )
         
+        # Extracción e inclusión independiente de Egresos Fijos del catálogo y Variables del mes
         cursor.execute("SELECT concepto, importe FROM egresos_fijos")
         egresos_fijos_lista = cursor.fetchall()
         
