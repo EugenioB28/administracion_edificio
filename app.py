@@ -16,6 +16,11 @@ st.markdown("""
         color: #1A1A1A !important;
     }
 
+    /* Corrección de contraste para los bloques de información y alertas */
+    div[data-testid="stNotification"] p, div[data-testid="stMarkdownContainer"] .info-text {
+        color: #FFFFFF !important;
+    }
+
     [data-testid="stSidebar"] { background-color: #1A3E5C !important; }
     [data-testid="stSidebar"] * { color: #FFFFFF !important; }
 
@@ -90,7 +95,7 @@ with st.sidebar:
 
 # ============ VISTA DEPARTAMENTOS ============
 if vista == "Departamentos":
-    st.title("Consulta de Departamento 🔍")
+    st.title("Consulta de Departamento")
     
     cursor.execute("SELECT depto FROM configuracion_deptos")
     deptos_raw = [f[0] for f in cursor.fetchall()]
@@ -120,7 +125,7 @@ if vista == "Departamentos":
         st.info("El administrador aún no ha subido el reporte para este mes.")
         
     st.markdown("---")
-    st.markdown("### Desglose de Saldos Individuales 📊")
+    st.markdown("### Desglose de Saldos Individuales")
     if st.button("Buscar Información"):
         query = "SELECT depto, saldo_anterior, pago, multa, adeudo_mes, pago_anticipado, banco_efectivo FROM bitacora_ingresos WHERE depto = %s AND mes_anio = %s"
         df = pd.read_sql_query(query, conn, params=(depto_sel, mes_sel))
@@ -134,7 +139,7 @@ if vista == "Departamentos":
 
 # ============ VISTA ADMINISTRADOR ============
 elif vista == "Administrador" and es_admin:
-    st.title("⚙️ Panel de Control - Administrador")
+    st.title("⚙️ Panel de Administrador")
     
     operacion = st.selectbox("Selecciona la acción a realizar:", ["Registrar Ingresos", "Registrar Egresos", "Modificar Valores Predefinidos", "Gestionar Reportes PDF"])
     mes_actual = st.text_input("Mes de Trabajo Actual (Ejemplo: Mayo 2026):", "Mayo 2026")
@@ -154,7 +159,7 @@ elif vista == "Administrador" and es_admin:
         cuota_fija = next(d[1] for d in deptos_info if d[0] == depto)
         saldo_anterior = next(d[2] for d in deptos_info if d[0] == depto)
         
-        st.text(f"Cuota mensual: ${cuota_fija:.2f}")
+        st.markdown(f"**Cuota mensual:** ${cuota_fija:.2f}")
         
         pago = st.number_input("Monto Pagado este mes ($):", min_value=0.0, step=50.0)
         multa = st.number_input("Multas aplicadas ($):", min_value=0.0, step=50.0)
@@ -167,8 +172,9 @@ elif vista == "Administrador" and es_admin:
             adeudo_mes = monto_debido - pago
             pago_anticipado = 0.0
             
-        texto_calculo = f"Adeudo del Mes: ${adeudo_mes:.2f}   |   Pago Anticipado: ${pago_anticipado:.2f}   |   Saldo Anterior: ${saldo_anterior:.2f}"
-        st.text(texto_calculo)
+        # Cambiado a st.info para heredar el contenedor azul con texto blanco corregido por CSS
+        texto_calculo = f"**Adeudo del Mes:** ${adeudo_mes:.2f}   |   **Pago Anticipado:** ${pago_anticipado:.2f}   |   **Saldo Anterior:** ${saldo_anterior:.2f}"
+        st.info(texto_calculo)
         
         banco_efectivo = st.selectbox("Forma de Pago:", ["Banco", "Efectivo"])
         
@@ -310,9 +316,10 @@ elif vista == "Administrador" and es_admin:
         for d_name in deptos_mapeados:
             if d_name in dict_ingresos:
                 info = dict_ingresos[d_name]
+                # Conversión explícita a float para evitar errores con tipos Decimal de PostgreSQL
                 datos_completos_tabla.append([
-                    d_name, f"{info['saldo_anterior']:.1f}", f"{info['pago']:.1f}", f"{info['multa']:.1f}",
-                    f"{info['adeudo_mes']:.1f}", f"{info['pago_anticipado']:.1f}", str(info['banco_efectivo'])
+                    d_name, f"{float(info['saldo_anterior']):.1f}", f"{float(info['pago']):.1f}", f"{float(info['multa']):.1f}",
+                    f"{float(info['adeudo_mes']):.1f}", f"{float(info['pago_anticipado']):.1f}", str(info['banco_efectivo'])
                 ])
             else:
                 cfg_depto = next(d for d in todos_los_deptos if d[0] == d_name)
@@ -320,7 +327,7 @@ elif vista == "Administrador" and es_admin:
                 saldo_ant = cfg_depto[2] if cfg_depto[2] is not None else 0.0
                 
                 datos_completos_tabla.append([
-                    d_name, f"{saldo_ant:.1f}", "0.0", "0.0", f"{cuota_base:.1f}", "0.0", "Efectivo"
+                    d_name, f"{float(saldo_ant):.1f}", "0.0", "0.0", f"{float(cuota_base):.1f}", "0.0", "Efectivo"
                 ])
         
         headers = ["Departamento", "Saldo Anterior", "Pago", "Multa", "Adeudo del Mes", "Pago Anticipado", "Banco/Efectivo"]
@@ -364,7 +371,7 @@ elif vista == "Administrador" and es_admin:
                 puntos = "." * (ancho_fijo - len(f"Concepto (Ejemplo: {concepto})"))
                 if len(puntos) < 4: puntos = "...."
                 
-                texto_egreso = f"Concepto (Ejemplo: {concepto}){puntos}${importe:,.2f}"
+                texto_egreso = f"Concepto (Ejemplo: {concepto}){puntos}${float(importe):,.2f}"
                 story.append(Paragraph(texto_egreso, style_egreso))
                 story.append(Spacer(1, 4))
         else:
