@@ -16,8 +16,12 @@ st.markdown("""
         color: #1A1A1A !important;
     }
 
-    /* Corrección de contraste para los bloques de información y alertas */
-    div[data-testid="stNotification"] p, div[data-testid="stMarkdownContainer"] .info-text {
+    /* Corrección e inmunidad para los bloques de información, éxito y alertas */
+    div[data-testid="stAlert"] p, 
+    div[data-testid="stAlert"] span, 
+    div[data-testid="stAlert"] div,
+    div[data-testid="stNotification"] p, 
+    div[data-testid="stNotification"] span {
         color: #FFFFFF !important;
     }
 
@@ -156,8 +160,12 @@ elif vista == "Administrador" and es_admin:
         
         depto = st.selectbox("Departamento a Registrar:", lista_deptos)
         
-        cuota_fija = next(d[1] for d in deptos_info if d[0] == depto)
-        saldo_anterior = next(d[2] for d in deptos_info if d[0] == depto)
+        cuota_fija_raw = next(d[1] for d in deptos_info if d[0] == depto)
+        saldo_anterior_raw = next(d[2] for d in deptos_info if d[0] == depto)
+        
+        # Conversión explícita para evitar fallos de operando con tipos numéricos de la DB
+        cuota_fija = float(cuota_fija_raw) if cuota_fija_raw is not None else 0.0
+        saldo_anterior = float(saldo_anterior_raw) if saldo_anterior_raw is not None else 0.0
         
         st.markdown(f"**Cuota mensual:** ${cuota_fija:.2f}")
         
@@ -172,7 +180,6 @@ elif vista == "Administrador" and es_admin:
             adeudo_mes = monto_debido - pago
             pago_anticipado = 0.0
             
-        # Cambiado a st.info para heredar el contenedor azul con texto blanco corregido por CSS
         texto_calculo = f"**Adeudo del Mes:** ${adeudo_mes:.2f}   |   **Pago Anticipado:** ${pago_anticipado:.2f}   |   **Saldo Anterior:** ${saldo_anterior:.2f}"
         st.info(texto_calculo)
         
@@ -316,7 +323,6 @@ elif vista == "Administrador" and es_admin:
         for d_name in deptos_mapeados:
             if d_name in dict_ingresos:
                 info = dict_ingresos[d_name]
-                # Conversión explícita a float para evitar errores con tipos Decimal de PostgreSQL
                 datos_completos_tabla.append([
                     d_name, f"{float(info['saldo_anterior']):.1f}", f"{float(info['pago']):.1f}", f"{float(info['multa']):.1f}",
                     f"{float(info['adeudo_mes']):.1f}", f"{float(info['pago_anticipado']):.1f}", str(info['banco_efectivo'])
