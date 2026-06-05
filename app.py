@@ -380,8 +380,9 @@ elif vista == "Administrador" and es_admin:
         )
         story.append(Paragraph("Egresos:", style_heading))
         
+        # Cambiado a la fuente Courier para garantizar alineación milimétrica con .ljust()
         style_egreso = ParagraphStyle(
-            name='EgresoRow', parent=styles['Normal'], fontName='Helvetica', fontSize=10, leading=14
+            name='EgresoRow', parent=styles['Normal'], fontName='Courier', fontSize=10, leading=14
         )
         
         cursor.execute("SELECT concepto, importe FROM egresos_fijos")
@@ -394,11 +395,20 @@ elif vista == "Administrador" and es_admin:
         
         if todos_los_egresos:
             for concepto, importe in todos_los_egresos:
-                ancho_fijo = 110  
-                puntos = "." * (ancho_fijo - len(f"Concepto (Ejemplo: {concepto})"))
-                if len(puntos) < 4: puntos = "...."
+                # 1. Se remueve el texto estático de ejemplo y los paréntesis
+                texto_concepto = f"Concepto: {concepto}"
+                monto_formateado = f"${float(importe):,.2f}"
                 
-                texto_egreso = f"Concepto (Ejemplo: {concepto}){puntos}${float(importe):,.2f}"
+                # 2. Formateo con relleno dinámico (Opción B) usando un ancho fijo total de 110 caracteres
+                ancho_total_linea = 110
+                cantidad_puntos = ancho_total_linea - len(texto_concepto) - len(monto_formateado)
+                
+                if cantidad_puntos < 4:
+                    cantidad_puntos = 4
+                    
+                puntos_dinamicos = "." * cantidad_puntos
+                texto_egreso = f"{texto_concepto}{puntos_dinamicos}{monto_formateado}"
+                
                 story.append(Paragraph(texto_egreso, style_egreso))
                 story.append(Spacer(1, 4))
         else:
