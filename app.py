@@ -31,12 +31,18 @@ st.markdown("""
         background-color: #2D323F !important;
     }
 
-    /* Corrección e inmunidad para los bloques de información, éxito y alertas */
+    /* Modificación de color para bloques de información, éxito y alertas (Azul Oscuro #1A3E5C) */
+    div[data-testid="stAlert"], div[data-testid="stNotification"] {
+        background-color: #1A3E5C !important;
+        border: 1px solid #1A3E5C !important;
+    }
+
     div[data-testid="stAlert"] p, 
     div[data-testid="stAlert"] span, 
     div[data-testid="stAlert"] div,
     div[data-testid="stNotification"] p, 
-    div[data-testid="stNotification"] span {
+    div[data-testid="stNotification"] span,
+    div[data-testid="stNotification"] div {
         color: #FFFFFF !important;
     }
 
