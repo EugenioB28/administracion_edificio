@@ -197,9 +197,11 @@ elif vista == "Administrador" and es_admin:
         if pago >= monto_debido:
             adeudo_mes = 0.0
             pago_anticipado = pago - monto_debido
+            pago_registrado = cuota_fija
         else:
             adeudo_mes = monto_debido - pago
             pago_anticipado = 0.0
+            pago_registrado = pago
             
         texto_calculo = f"**Adeudo del Mes:** ${adeudo_mes:.2f}   |   **Pago Anticipado:** ${pago_anticipado:.2f}   |   **Saldo Anterior:** ${saldo_anterior:.2f}"
         st.info(texto_calculo)
@@ -218,7 +220,7 @@ elif vista == "Administrador" and es_admin:
                     adeudo_mes = EXCLUDED.adeudo_mes,
                     pago_anticipado = EXCLUDED.pago_anticipado,
                     banco_efectivo = EXCLUDED.banco_efectivo
-            """, (mes_actual, depto, saldo_anterior, pago, multa, adeudo_mes, pago_anticipado, banco_efectivo))
+            """, (mes_actual, depto, saldo_anterior, pago_registrado, multa, adeudo_mes, pago_anticipado, banco_efectivo))
             
             nuevo_saldo_anterior = saldo_anterior - adeudo_mes + pago_anticipado
             cursor.execute("UPDATE configuracion_deptos SET saldo_anterior = %s WHERE depto = %s", (nuevo_saldo_anterior, depto))
@@ -380,7 +382,6 @@ elif vista == "Administrador" and es_admin:
         )
         story.append(Paragraph("Egresos:", style_heading))
         
-        # Cambiado a la fuente Courier para garantizar alineación milimétrica con .ljust()
         style_egreso = ParagraphStyle(
             name='EgresoRow', parent=styles['Normal'], fontName='Courier', fontSize=10, leading=14
         )
@@ -395,18 +396,16 @@ elif vista == "Administrador" and es_admin:
         
         if todos_los_egresos:
             for concepto, importe in todos_los_egresos:
-                # 1. Se remueve el texto estático de ejemplo y los paréntesis
                 texto_concepto = f"Concepto: {concepto}"
                 monto_formateado = f"${float(importe):,.2f}"
                 
-                # 2. Formateo con relleno dinámico (Opción B) usando un ancho fijo total de 110 caracteres
                 ancho_total_linea = 110
-                cantidad_puntos = ancho_total_linea - len(texto_concepto) - len(monto_formateado)
+                amount_puntos = ancho_total_linea - len(texto_concepto) - len(monto_formateado)
                 
-                if cantidad_puntos < 4:
-                    cantidad_puntos = 4
+                if amount_puntos < 4:
+                    amount_puntos = 4
                     
-                puntos_dinamicos = "." * cantidad_puntos
+                puntos_dinamicos = "." * amount_puntos
                 texto_egreso = f"{texto_concepto}{puntos_dinamicos}{monto_formateado}"
                 
                 story.append(Paragraph(texto_egreso, style_egreso))
