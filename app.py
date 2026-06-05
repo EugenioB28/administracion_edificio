@@ -12,8 +12,23 @@ st.markdown("""
     .stApp { background-color: #FFFFFF !important; }
 
     [data-testid="stMain"] p, [data-testid="stMain"] span, [data-testid="stMain"] label,
-    [data-testid="stMain"] div, [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3 {
+    [data-testid="stMain"] h1, [data-testid="stMain"] h2, [data-testid="stMain"] h3 {
         color: #1A1A1A !important;
+    }
+
+    /* Corrección de color para las cajas de selección (st.selectbox) en tema oscuro */
+    div[data-baseweb="select"] div {
+        color: #FFFFFF !important;
+    }
+    
+    /* Fondo oscuro y texto blanco en las opciones desplegables */
+    ul[role="listbox"] li {
+        color: #FFFFFF !important;
+        background-color: #1E2229 !important;
+    }
+    
+    ul[role="listbox"] li:hover {
+        background-color: #2D323F !important;
     }
 
     /* Corrección e inmunidad para los bloques de información, éxito y alertas */
@@ -84,7 +99,7 @@ with st.sidebar:
 
     es_admin = False
     if vista == "Administrador":
-        password = st.text_input("Contraseña de Acceso:", type="password")
+        password = st.text_input("Contraseña de Accesso:", type="password")
         if password == ADMIN_PASSWORD:
             es_admin = True
             st.success("Acceso Autorizado")
