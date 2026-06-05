@@ -206,9 +206,14 @@ elif vista == "Administrador" and es_admin:
         texto_calculo = f"**Adeudo del Mes:** ${adeudo_mes:.2f}   |   **Pago Anticipado:** ${pago_anticipado:.2f}   |   **Saldo Anterior:** ${saldo_anterior:.2f}"
         st.info(texto_calculo)
         
-        banco_efectivo = st.selectbox("Forma de Pago:", ["Banco", "Efectivo"])
+        banco_efectivo_sel = st.selectbox("Forma de Pago:", ["Banco", "Efectivo"])
         
         if st.button("Guardar Registro de Ingreso"):
+            if pago == 0.0 or saldo_anterior >= monto_debido:
+                banco_efectivo = ""
+            else:
+                banco_efectivo = banco_efectivo_sel
+
             cursor.execute("""
                 INSERT INTO bitacora_ingresos 
                 (mes_anio, depto, saldo_anterior, pago, multa, adeudo_mes, pago_anticipado, banco_efectivo)
@@ -346,9 +351,10 @@ elif vista == "Administrador" and es_admin:
         for d_name in deptos_mapeados:
             if d_name in dict_ingresos:
                 info = dict_ingresos[d_name]
+                banco_efectivo_val = str(info['banco_efectivo']) if info['banco_efectivo'] is not None else ""
                 datos_completos_tabla.append([
                     d_name, f"{float(info['saldo_anterior']):.1f}", f"{float(info['pago']):.1f}", f"{float(info['multa']):.1f}",
-                    f"{float(info['adeudo_mes']):.1f}", f"{float(info['pago_anticipado']):.1f}", str(info['banco_efectivo'])
+                    f"{float(info['adeudo_mes']):.1f}", f"{float(info['pago_anticipado']):.1f}", banco_efectivo_val
                 ])
             else:
                 cfg_depto = next(d for d in todos_los_deptos if d[0] == d_name)
@@ -356,7 +362,7 @@ elif vista == "Administrador" and es_admin:
                 saldo_ant = cfg_depto[2] if cfg_depto[2] is not None else 0.0
                 
                 datos_completos_tabla.append([
-                    d_name, f"{float(saldo_ant):.1f}", "0.0", "0.0", f"{float(cuota_base):.1f}", "0.0", "Efectivo"
+                    d_name, f"{float(saldo_ant):.1f}", "0.0", "0.0", f"{float(cuota_base):.1f}", "0.0", ""
                 ])
         
         headers = ["Departamento", "Saldo Anterior", "Pago", "Multa", "Adeudo del Mes", "Pago Anticipado", "Banco/Efectivo"]
